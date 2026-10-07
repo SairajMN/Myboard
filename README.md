@@ -12,6 +12,17 @@ acted on alone, no matter how confident the model claims to be.
 > **Lumen Labs, the company in the demo, is simulated.** All data, events and code in
 > `demo_company/` are fixtures built for this demo. Nothing here watches a real company.
 
+**Live demo:** https://wcjhb3duaxyb6csveaxehrl2aa0mecwj.lambda-url.ap-south-1.on.aws/
+
+## Try it in 60 seconds
+
+1. Open the live demo and type a decision in **Ask your board** — four agent
+   seats (CTO, CFO, Risk, Growth, each on a different model) debate and vote.
+2. Or click **A**, **B**, **C** to run scripted scenarios: a low-risk
+   dependency fix, a sensitive billing anomaly, an ambiguous usage dip.
+3. Click any item to read its summary, votes, patch diff, governance
+   checklist, and full audit trail.
+
 ## How it works
 
 EventBridge Scheduler fires every 5 minutes → a worker Lambda ingests raw events, and an
@@ -32,6 +43,19 @@ GovernanceReview → Closed | Escalated
   of "tests pass" is never trusted.
 - Every LLM call, transition, attempt and governance check is appended to DynamoDB.
 
+## Agents
+
+| Agent | Job |
+|---|---|
+| Monitor | Watches the feed, classifies events, opens findings. No AI. |
+| Research | Attaches fresh web sources to every finding (Querit). |
+| Data | Enriches company mentions with firmographics (Glasser). |
+| Scraper | Fetches linked pages as markdown evidence (Apify). |
+| Board (CTO / CFO / Risk / Growth) | Debates founder questions, votes, drafts motions. |
+| Decision | Proposes a route; the policy engine decides. |
+| Action | Patches code in a sandbox, runs real pytest, retries red runs. |
+| Governance | Deterministic checklist; the model may only add concerns. |
+
 ## Architecture
 
 ```mermaid
@@ -40,7 +64,8 @@ flowchart LR
     D[Static dashboard] <--> A[boardagents-api Lambda + Function URL]
     A -- async invoke --> W
     W --> B[Bedrock Converse API<br/>small / strong / code]
-    W --> T[/tmp sandbox<br/>real pytest run/]
+    W --> T[Tenki sandbox or /tmp<br/>real pytest run/]
+    W --> R[Querit · Glasser · Apify<br/>research signals]
     W --> DB[(DynamoDB<br/>findings / audit / feed)]
     W --> S3[(S3 artifacts)]
     W --> L[CloudWatch logs]
@@ -63,6 +88,10 @@ flowchart LR
 ./scripts/teardown.sh  # remove the stack
 ```
 
+Stack name defaults to `boardagents`; `STACK=myboard ./scripts/deploy.sh`
+deploys an isolated copy. Secrets come from `.env` (gitignored) — copy
+`.env.example` and fill in the keys.
+
 ## Sponsor tooling
 
 - **RocketRide** — the summarize / decide / governance stages also exist as portable
@@ -70,6 +99,15 @@ flowchart LR
   `python scripts/rr_stage.py summarize '{"title": "mailkit EOL"}'`.
 - **Querit** — the research agent attaches fresh web sources to every ingested
   finding (`payload.web`) when `QUERIT_API_KEY` is set; without a key it stays silent.
+- **Glasser** — the data agent enriches company mentions (`payload.companies`) via
+  the Glasser CLI when `GLASSER_API_KEY` is set; silent without it.
+- **Apify** — the scraping agent fetches linked pages as markdown (`payload.page`)
+  when `APIFY_TOKEN` is set; silent without it.
+- **Tenki** — verification pytest runs inside a Tenki sandbox session
+  (`src/core/sandbox.py`) when the CLI and `TENKI_API_KEY` are present; otherwise
+  the local `/tmp` sandbox is used.
+- **Prelint** — every PR is product-reviewed against `docs/PRODUCT_SPEC.md` plus
+  the rules in `prelint.json`.
 
 ## Architecture and cost decisions
 
